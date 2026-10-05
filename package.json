@@ -1,6 +1,6 @@
 {
   "name": "video-notes",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Obsidian plugin: video on the left, mind map + Markdown notes on the right.",
   "main": "main.js",
   "type": "module",

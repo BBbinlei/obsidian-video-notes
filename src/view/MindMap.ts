@@ -19,8 +19,10 @@ const NEW_NODE = '新节点';
 export interface MindMapHost {
   /** Write new file lines, then re-render with `select` chosen. */
   commit(lines: string[], opts: { select: number; edit?: boolean }): void;
-  /** The user picked a node. */
+  /** The user picked a node (this alone does not move the video). */
   selected(node: MindNode): void;
+  /** The user asked to play from this node's time. */
+  jump(node: MindNode): void;
   /** Current video time in seconds, for stamping new nodes. */
   currentTime(): number;
   undo(): void;
@@ -74,7 +76,7 @@ export class MindMap {
     return this.sel;
   }
 
-  /** Select by line, as if clicked (seeks the video if the node is timed). */
+  /** Select by line, as if clicked. */
   selectLine(line: number): void {
     this.select(line);
   }
@@ -195,11 +197,17 @@ export class MindMap {
 
   private buildActions(el: HTMLElement, node: MindNode, folded: boolean): void {
     const bar = el.createDiv({ cls: 'vn-abar' });
-    const items: [string, string, string][] = [
+    const items: [string, string, string][] = [];
+    const { seconds } = parseTimestamp(node.text);
+
+    if (seconds !== null) {
+      items.push(['jump', '▶', `跳转到 ${formatTimestamp(seconds)}`]);
+    }
+    items.push(
       ['child', '＋子', 'Tab'],
       ['sib', '＋同级', 'Enter'],
       ['stamp', '⏱', '用当前播放时间打点'],
-    ];
+    );
 
     if (node.children.length && node.type !== 'root') {
       items.push([folded ? 'unfold' : 'fold', folded ? '⊞' : '⊟', 'Ctrl+←/→ 折叠/展开']);
@@ -328,7 +336,9 @@ export class MindMap {
     }
     const lines = [...this.doc.lines];
 
-    if (act === 'fold' || act === 'unfold') {
+    if (act === 'jump') {
+      this.host.jump(node);
+    } else if (act === 'fold' || act === 'unfold') {
       this.setFold(node, act === 'fold');
     } else if (act === 'child' || (act === 'sib' && node.type === 'root')) {
       this.insert(lines, addChildOp(lines, node));

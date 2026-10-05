@@ -496,3 +496,5 @@
 .vn-guide-card input { width: 100%; }
 .vn-guide-err { min-height: 20px; margin-top: 6px; font-size: var(--font-ui-smaller); color: #ff7b7b; }
 .vn-guide-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+
+.vn-abar button[data-act="jump"] { color: var(--interactive-accent); }

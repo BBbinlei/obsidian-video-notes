@@ -100,7 +100,14 @@ export class VideoNoteView extends ItemView {
     this.controls = new Controls(this.left.createDiv({ cls: 'vn-controls' }), {
       toggle: () => this.togglePlay(),
       seek: (s) => this.player?.seek(s),
-      chapter: (line) => this.mindmap.selectLine(line),
+      chapter: (line) => {
+        this.mindmap.selectLine(line);
+        const node = this.nodeAtLine(line);
+
+        if (node) {
+          this.jumpTo(node);
+        }
+      },
       changeVideo: () => this.renderGuide(this.videoUrl ?? '', '', true),
       toggleDrawer: () => {
         settings.drawerOpen = !settings.drawerOpen;
@@ -138,6 +145,7 @@ export class VideoNoteView extends ItemView {
     this.mindmap = new MindMap(this.mmWrap, {
       commit: (lines, opts) => void this.commit(lines, opts),
       selected: (node) => this.onSelected(node),
+      jump: (node) => this.jumpTo(node),
       currentTime: () => this.player?.getState().time ?? 0,
       undo: () => void this.undo(),
       redo: () => void this.redo(),
@@ -347,13 +355,26 @@ export class VideoNoteView extends ItemView {
     if (!this.doc) {
       return;
     }
+    // Picking a node only shows its note; the video moves when asked to (jumpTo).
     this.notes.show(node, this.doc);
     this.controls.setSelected(node.line);
+  }
+
+  /** Seek the video to the node's `[mm:ss]`, if it has one. */
+  private jumpTo(node: MindNode): void {
     const { seconds } = parseTimestamp(node.text);
 
     if (seconds !== null) {
       this.player?.seek(seconds);
     }
+  }
+
+  private nodeAtLine(line: number): MindNode | null {
+    if (!this.doc) {
+      return null;
+    }
+
+    return line < 0 ? this.doc.root : findByLine(this.doc.root, line);
   }
 
   private togglePlay(): void {
