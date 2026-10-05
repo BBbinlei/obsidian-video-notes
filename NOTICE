@@ -1,0 +1,6 @@
+Third-party code
+
+src/core/** (parse, write, render, tasks) is adapted from
+obsidian-mindmap-editor by vulture039, used under the MIT License.
+https://github.com/vulture039/obsidian-mindmap-editor
+The original license text is in THIRD_PARTY_LICENSES/obsidian-mindmap-editor.LICENSE.

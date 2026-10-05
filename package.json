@@ -1,0 +1,22 @@
+{
+  "name": "video-notes",
+  "version": "0.1.0",
+  "description": "Obsidian plugin: video on the left, mind map + Markdown notes on the right.",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "deploy": "npm run build && mkdir -p dev-vault/.obsidian/plugins/video-notes && cp main.js manifest.json styles.css dev-vault/.obsidian/plugins/video-notes/"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.15.17",
+    "esbuild": "0.25.5",
+    "obsidian": "latest",
+    "typescript": "^5.8.3",
+    "vitest": "3.2.7"
+  }
+}

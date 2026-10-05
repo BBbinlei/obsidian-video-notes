@@ -1,0 +1,8 @@
+node_modules
+main.js
+dev-vault/.obsidian/plugins/video-notes/
+dev-vault/.obsidian/workspace*.json
+.DS_Store
+data.json
+dev-vault/.obsidian/plugins/
+demo-assets/
