@@ -74,7 +74,7 @@ describe('bodyText / setBodyOp', () => {
   });
 });
 
-import { chapterMarkers, setVideoOp } from './doc';
+import { chapterMarkers, setVideoOp, shiftSelection } from './doc';
 
 describe('chapterMarkers', () => {
   it('lists timed nodes down to depth 2', () => {
@@ -117,5 +117,22 @@ describe('setVideoOp', () => {
 
   it('round-trips through readFrontmatter', () => {
     expect(readFrontmatter(setVideoOp(['body'], URL_A)).video).toBe(URL_A);
+  });
+});
+
+describe('shiftSelection', () => {
+  it('moves a selection that comes after the edited node', () => {
+    expect(shiftSelection(10, 4, 3)).toBe(13);
+    expect(shiftSelection(10, 4, -2)).toBe(8);
+  });
+
+  it('leaves the edited node and earlier ones alone', () => {
+    expect(shiftSelection(4, 4, 3)).toBe(4);
+    expect(shiftSelection(2, 4, 3)).toBe(2);
+  });
+
+  it('treats the root (-1) as before everything, and as edited, moves all', () => {
+    expect(shiftSelection(-1, 4, 3)).toBe(-1);
+    expect(shiftSelection(5, -1, 2)).toBe(7);
   });
 });

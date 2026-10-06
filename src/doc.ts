@@ -142,3 +142,11 @@ export function setVideoOp(lines: string[], url: string): string[] {
 
   return out;
 }
+
+/**
+ * Where a selected line ends up after the body of the node at `editedLine`
+ * grew or shrank by `delta` lines: everything after it moves, the rest stays.
+ */
+export function shiftSelection(sel: number, editedLine: number, delta: number): number {
+  return sel > editedLine ? sel + delta : sel;
+}

@@ -12,6 +12,7 @@ import {
   setTextOp,
 } from '../core/write/ops';
 import { formatTimestamp, parseTimestamp, withTimestamp } from '../timestamp';
+import { isComposingKey } from './keys';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const NEW_NODE = '新节点';
@@ -252,6 +253,9 @@ export class MindMap {
 
     input.addEventListener('keydown', (e) => {
       e.stopPropagation();
+      if (isComposingKey(e)) {
+        return; // picking a candidate / cancelling composition, not saving the node
+      }
       if (e.key === 'Enter') {
         finish(true);
       } else if (e.key === 'Escape') {
@@ -516,6 +520,7 @@ export class MindMap {
         this.act('sib', node);
         break;
       case 'F2':
+      case ' ':
         this.startEdit(node.line);
         break;
       case 'Delete':

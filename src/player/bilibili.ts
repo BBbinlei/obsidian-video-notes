@@ -1,12 +1,25 @@
 import { Player, PlayerState } from './types';
 
-// SPIKE: Bilibili's embed page is cross-origin, so we load it in an Electron
+// SPIKE: Bilibili's page is cross-origin, so we load it in an Electron
 // <webview> and read/drive its <video> through executeJavaScript. Needs
 // desktop Obsidian; unverified until tried against a real video.
 
+/** One persistent session shared by the player and the login window. */
+export const BILIBILI_PARTITION = 'persist:video-notes-bilibili';
+
 interface WebviewElement extends HTMLElement {
   executeJavaScript(code: string): Promise<unknown>;
+  insertCSS(css: string): Promise<string>;
 }
+
+// The full video page is the only Bilibili player that honours the login (the
+// embed one always behaves like a guest), so load it and show just the player.
+const PLAYER_ONLY_CSS = `
+html, body { overflow: hidden !important; background: #000 !important; }
+#playerWrap, .player-wrap { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 2147483647 !important; background: #000 !important; margin: 0 !important; padding: 0 !important; }
+#bilibili-player, #bilibili-player .bpx-player-container, .bpx-player-container { width: 100% !important; height: 100% !important; }
+#biliMainHeader, .bili-header, #bili-header-container, .fixed-sidenav-storage, .bili-feedback { display: none !important; }
+`;
 
 const READ_JS = `(() => {
   const v = document.querySelector('video');
@@ -31,9 +44,10 @@ export class BilibiliPlayer implements Player {
     const wv = this.container.doc.createElement('webview') as WebviewElement;
 
     wv.addClass('vn-player-mount');
+    wv.setAttribute('partition', BILIBILI_PARTITION);
     wv.setAttribute(
       'src',
-      `https://player.bilibili.com/player.html?bvid=${this.bvid}&page=${this.page}&high_quality=1&autoplay=0`,
+      `https://www.bilibili.com/video/${this.bvid}/?p=${this.page}`,
     );
     this.container.appendChild(wv);
     this.wv = wv;
@@ -47,6 +61,16 @@ export class BilibiliPlayer implements Player {
         { once: true },
       );
     });
+    const fit = (): void => {
+      void this.wv
+        ?.insertCSS(PLAYER_ONLY_CSS)
+        .then(() => this.run(`window.dispatchEvent(new Event('resize'))`))
+        .catch(() => undefined);
+    };
+
+    fit();
+    wv.addEventListener('did-finish-load', fit);
+    wv.addEventListener('did-navigate-in-page', fit);
     this.timer = this.container.win.setInterval(() => void this.poll(), 300);
   }
 

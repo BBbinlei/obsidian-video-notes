@@ -9,6 +9,7 @@ export interface ControlsHost {
   chapter(line: number): void;
   toggleDrawer(): void;
   changeVideo(): void;
+  loginBilibili(): void;
 }
 
 /** Play/pause, time, and a progress bar carrying one marker per chapter. */
@@ -18,6 +19,7 @@ export class Controls {
   private readonly fill: HTMLElement;
   private readonly bar: HTMLElement;
   private readonly drawerBtn: HTMLButtonElement;
+  private readonly loginBtn: HTMLButtonElement;
   private duration = 0;
   private chapters: Chapter[] = [];
   private marks: { el: HTMLElement; ch: Chapter }[] = [];
@@ -42,11 +44,17 @@ export class Controls {
     this.btn.addEventListener('click', () => host.toggle());
     this.label = row.createSpan({ cls: 'vn-time', text: '00:00 / 00:00' });
     row.createSpan({ cls: 'vn-sp' });
+    this.loginBtn = row.createEl('button', { text: 'B 站登录', cls: 'vn-btn is-hidden' });
+    this.loginBtn.addEventListener('click', () => host.loginBilibili());
     const change = row.createEl('button', { text: '更换视频', cls: 'vn-btn' });
 
     change.addEventListener('click', () => host.changeVideo());
     this.drawerBtn = row.createEl('button', { text: '字幕列表', cls: 'vn-btn' });
     this.drawerBtn.addEventListener('click', () => host.toggleDrawer());
+  }
+
+  setBilibili(on: boolean): void {
+    this.loginBtn.toggleClass('is-hidden', !on);
   }
 
   setDrawerOpen(open: boolean): void {

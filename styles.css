@@ -498,3 +498,14 @@
 .vn-guide-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
 
 .vn-abar button[data-act="jump"] { color: var(--interactive-accent); }
+
+.vn-note { cursor: text; }
+.vn-note a { cursor: pointer; }
+
+/* Bilibili login window */
+.vn-btn.is-hidden { display: none; }
+.vn-login-modal { width: 80vw; max-width: 1000px; height: 80vh; }
+.vn-login-modal .modal-content { display: flex; flex-direction: column; height: 100%; padding: 0; }
+.vn-login-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; font-size: var(--font-ui-small); }
+.vn-login-bar .is-hidden { display: none; }
+.vn-login-view { flex: 1; min-height: 0; width: 100%; }

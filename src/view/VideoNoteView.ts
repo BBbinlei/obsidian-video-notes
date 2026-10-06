@@ -1,10 +1,11 @@
 import { ItemView, Notice, TFile, ViewStateResult, WorkspaceLeaf } from 'obsidian';
-import { Doc, bodyText, chapterMarkers, parseDoc, setBodyOp, setVideoOp } from '../doc';
+import { Doc, bodyText, chapterMarkers, parseDoc, setBodyOp, setVideoOp, shiftSelection } from '../doc';
 import { History } from '../history';
 import type VideoNotesPlugin from '../main';
 import { MindNode, findByLine } from '../core/parse/parser';
 import { makeChatCall, obsidianHttp } from '../net';
 import { BilibiliPlayer } from '../player/bilibili';
+import { BilibiliLoginModal } from '../player/bilibiliLogin';
 import { Player, PlayerState, VideoSource, parseVideoUrl, videoKey } from '../player/types';
 import { YouTubePlayer } from '../player/youtube';
 import { parseSubtitleFile } from '../subtitles/parse';
@@ -109,6 +110,16 @@ export class VideoNoteView extends ItemView {
         }
       },
       changeVideo: () => this.renderGuide(this.videoUrl ?? '', '', true),
+      loginBilibili: () =>
+        new BilibiliLoginModal(this.app, (changed) => {
+          const url = this.videoUrl;
+
+          if (changed && url) {
+            // Remount so the player picks up the new session.
+            this.videoUrl = null;
+            this.mountVideo(url);
+          }
+        }).open(),
       toggleDrawer: () => {
         settings.drawerOpen = !settings.drawerOpen;
         this.applyDrawer();
@@ -152,7 +163,7 @@ export class VideoNoteView extends ItemView {
     });
     this.mmWrap.createDiv({
       cls: 'vn-hint',
-      text: '↑↓←→ 移动 · Tab 子节点 · Enter 同级 · F2 改名 · Del 删除 · Ctrl+←/→ 折叠/展开 · ⌘Z 撤销 · 拖动节点改结构',
+      text: '↑↓←→ 移动 · Tab 子节点 · Enter 同级 · 空格 / F2 改名 · Del 删除 · Ctrl+←/→ 折叠/展开 · ⌘Z 撤销 · 拖动节点改结构',
     });
     const hsplit = this.right.createDiv({ cls: 'vn-hsplit' });
 
@@ -326,9 +337,17 @@ export class VideoNoteView extends ItemView {
       this.history.push({ lines: this.doc.lines, select: this.mindmap.selectedLine() });
       this.lastKind = kind;
     }
-    await this.write(setBodyOp([...this.doc.lines], node, body, this.doc.fm));
-    this.mindmap.render(this.doc!, this.mindmap.selectedLine());
+    const before = this.doc.lines.length;
+    const next = setBodyOp([...this.doc.lines], node, body, this.doc.fm);
+
+    await this.write(next);
+    // The save may land after another node was picked; if this node's text got
+    // longer or shorter, the picked node's line moved with everything below.
+    const select = shiftSelection(this.mindmap.selectedLine(), line, next.length - before);
+
+    this.mindmap.render(this.doc!, select);
     this.controls.setChapters(chapterMarkers(this.doc!.root));
+    this.showSelected();
   }
 
   /* ---------- selection / playback ---------- */
@@ -412,6 +431,7 @@ export class VideoNoteView extends ItemView {
     const src = this.src;
 
     this.subs.setYouTube(src?.kind === 'youtube');
+    this.controls.setBilibili(src?.kind === 'bilibili');
 
     if (!src) {
       this.renderGuide(url ?? '', url ? '无法识别这个视频链接，请检查后重新填写' : '', false);

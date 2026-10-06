@@ -2,6 +2,7 @@ import { App, Component, MarkdownRenderer } from 'obsidian';
 import { Doc, bodyText } from '../doc';
 import { MindNode } from '../core/parse/parser';
 import { formatTimestamp, parseTimestamp } from '../timestamp';
+import { isComposingKey } from './keys';
 
 export interface NotePaneHost {
   /** Body text of the node at `line` was edited. */
@@ -10,17 +11,24 @@ export interface NotePaneHost {
 }
 
 const TS_IN_TEXT = /\[(\d{1,3}):([0-5]\d)(?::([0-5]\d))?\]/g;
+const SAVE_DELAY = 400;
+/** Waits out the click that caused a blur, so saving does not redraw under it. */
+const BLUR_SAVE_DELAY = 250;
 
-/** The selected node's own text: rendered Markdown, or a textarea to edit. */
+/**
+ * The selected node's own text. Shown as rendered Markdown; a click turns it
+ * into a textarea, and leaving the textarea saves and renders again.
+ */
 export class NotePane {
   private readonly titleEl: HTMLElement;
   private readonly timeEl: HTMLElement;
-  private readonly editBtn: HTMLButtonElement;
   private readonly body: HTMLElement;
   private line = -1;
   private text = '';
   private editing = false;
+  private dirty = false;
   private timer: number | null = null;
+  private renderId = 0;
 
   constructor(
     parent: HTMLElement,
@@ -33,15 +41,18 @@ export class NotePane {
 
     this.titleEl = head.createEl('b', { text: '笔记' });
     this.timeEl = head.createSpan();
-    head.createSpan({ cls: 'vn-sp' });
-    this.editBtn = head.createEl('button', { text: '编辑' });
-    this.editBtn.addEventListener('click', () => this.toggle());
     this.body = parent.createDiv({ cls: 'vn-note' });
     this.body.addEventListener('click', (e) => {
-      const a = (e.target as HTMLElement).closest<HTMLElement>('.vn-ts');
+      if (this.editing) {
+        return;
+      }
+      const target = e.target as HTMLElement;
+      const ts = target.closest<HTMLElement>('.vn-ts');
 
-      if (a) {
-        this.host.seek(Number(a.dataset.t));
+      if (ts) {
+        this.host.seek(Number(ts.dataset.t));
+      } else if (!target.closest('a')) {
+        this.enterEdit();
       }
     });
   }
@@ -50,62 +61,91 @@ export class NotePane {
     const { title, seconds } = parseTimestamp(node.text);
 
     this.line = node.line;
-    this.text = bodyText(node, doc.lines, doc.fm);
     this.titleEl.setText(title || doc.root.text);
     this.timeEl.setText(seconds !== null ? `· ${formatTimestamp(seconds)}` : '');
     if (this.editing) {
-      const ta = this.body.querySelector('textarea');
+      // The user's text is the truth while typing: the saved copy is trimmed,
+      // and writing it back would eat a trailing space or move the caret.
+      return;
+    }
+    this.text = bodyText(node, doc.lines, doc.fm);
+    void this.renderView();
+  }
 
-      if (ta) {
-        ta.value = this.text;
-      }
-    } else {
-      void this.renderView();
+  private clearTimer(): void {
+    if (this.timer !== null) {
+      window.clearTimeout(this.timer);
+      this.timer = null;
     }
   }
 
-  private toggle(): void {
-    this.editing = !this.editing;
-    this.editBtn.setText(this.editing ? '完成' : '编辑');
-    if (this.editing) {
-      this.body.empty();
-      const ta = this.body.createEl('textarea', { cls: 'vn-note-edit' });
+  private enterEdit(): void {
+    this.editing = true;
+    this.body.empty();
+    const ta = this.body.createEl('textarea', {
+      cls: 'vn-note-edit',
+      attr: { placeholder: '在这里写这个节点的笔记（Markdown）…' },
+    });
 
-      ta.value = this.text;
-      ta.addEventListener('input', () => {
-        this.text = ta.value;
-        if (this.timer !== null) {
-          window.clearTimeout(this.timer);
-        }
-        this.timer = window.setTimeout(
-          () => this.host.commitBody(this.line, this.text),
-          400,
-        );
-      });
-      ta.focus();
-    } else {
-      void this.renderView();
+    ta.value = this.text;
+    ta.addEventListener('input', () => {
+      this.text = ta.value;
+      this.dirty = true;
+      this.clearTimer();
+      const line = this.line;
+      const text = this.text;
+
+      this.timer = window.setTimeout(() => {
+        this.timer = null;
+        this.dirty = false;
+        this.host.commitBody(line, text);
+      }, SAVE_DELAY);
+    });
+    ta.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !isComposingKey(e)) {
+        e.preventDefault();
+        ta.blur();
+      }
+    });
+    ta.addEventListener('blur', () => this.leaveEdit());
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+  }
+
+  private leaveEdit(): void {
+    if (!this.editing) {
+      return;
     }
+    this.editing = false;
+    this.clearTimer();
+    if (this.dirty) {
+      // Take line and text now: by the time this runs another node may be selected.
+      const line = this.line;
+      const text = this.text;
+
+      this.dirty = false;
+      window.setTimeout(() => this.host.commitBody(line, text), BLUR_SAVE_DELAY);
+    }
+    void this.renderView();
   }
 
   private async renderView(): Promise<void> {
-    this.body.empty();
-    if (!this.text.trim()) {
-      this.body.createDiv({
-        cls: 'vn-none',
-        text: '这个节点还没有笔记。点右上角「编辑」开始填充。',
-      });
+    const id = ++this.renderId;
+    const text = this.text;
+    const holder = this.body.doc.createElement('div');
 
+    if (!text.trim()) {
+      holder.createDiv({ cls: 'vn-none', text: '点击这里开始写这个节点的笔记' });
+    } else {
+      await MarkdownRenderer.render(this.app, text, holder, this.sourcePath(), this.owner);
+      this.linkTimestamps(holder);
+    }
+    // A newer render, or the user starting to type, supersedes this one.
+    if (id !== this.renderId || this.editing) {
       return;
     }
-    await MarkdownRenderer.render(
-      this.app,
-      this.text,
-      this.body,
-      this.sourcePath(),
-      this.owner,
-    );
-    this.linkTimestamps(this.body);
+    this.body.empty();
+    this.body.append(...Array.from(holder.childNodes));
   }
 
   /** Turns `[mm:ss]` in rendered text into links that seek the video. */
